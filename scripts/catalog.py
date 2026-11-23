@@ -1,9 +1,15 @@
-import json,urllib.request,urllib.parse,pathlib,concurrent.futures,datetime,shutil
+import json,urllib.request,urllib.parse,urllib.error,pathlib,datetime,time
 BASE='https://pruebas-app.elcuquet.net'
 OUT=pathlib.Path('dist');OUT.mkdir(exist_ok=True)
 def get(path):
  u=BASE+path
- with urllib.request.urlopen(urllib.request.Request(u,headers={'User-Agent':'ElCuquet-PWA/0.1.0'}),timeout=60) as r:return json.load(r)
+ for attempt in range(5):
+  try:
+   time.sleep(2)
+   with urllib.request.urlopen(urllib.request.Request(u,headers={'User-Agent':'ElCuquet-PWA/0.1.0'}),timeout=60) as r:return json.load(r)
+  except urllib.error.HTTPError as e:
+   if e.code not in [429,502,503,504] or attempt==4:raise
+   time.sleep(min(60,int(e.headers.get('Retry-After','30'))))
 def pages(path):
  data=[]
  for page in range(1,101):
@@ -13,14 +19,14 @@ def pages(path):
  raise RuntimeError('Pagination limit')
 products=pages('/wp-json/wc/store/v1/products')
 categories=pages('/wp-json/wc/store/v1/products/categories')
-def variants(p):
+all_variations=pages('/wp-json/wc/store/v1/products?type=variation')
+by_parent={}
+for v in all_variations:by_parent.setdefault(v.get('parent'),[]).append(v)
+for p in products:
  if p['type']=='variable':
-  p['variantDetails']=[v for v in pages('/wp-json/wc/store/v1/products?type=variation&parent='+str(p['id'])) if v.get('parent')==p['id']]
   attr_map={v['id']:v.get('attributes',[]) for v in p.get('variations',[])}
-  for v in p['variantDetails']:
-   v['attributes']=attr_map.get(v['id'],v.get('attributes',[]))
- return p
-with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool: products=list(pool.map(variants,products))
+  p['variantDetails']=by_parent.get(p['id'],[])
+  for v in p['variantDetails']:v['attributes']=attr_map.get(v['id'],v.get('attributes',[]))
 # Only public Store API data; never customers, orders or administrative APIs.
 for p in products:
  for q in [p]+p.get('variantDetails',[]):
