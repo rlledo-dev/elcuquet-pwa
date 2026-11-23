@@ -33,5 +33,25 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
+          name: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Esperar a que el paquete esté disponible
+        run: |
+          python - <<'PY'
+          import json, os, time, urllib.request
+          name = 'github-pages-' + os.environ['GITHUB_RUN_ID'] + '-' + os.environ['GITHUB_RUN_ATTEMPT']
+          url = 'https://api.github.com/repos/' + os.environ['GITHUB_REPOSITORY'] + '/actions/runs/' + os.environ['GITHUB_RUN_ID'] + '/artifacts'
+          for attempt in range(8):
+              with urllib.request.urlopen(url, timeout=30) as response:
+                  artifacts = json.load(response)['artifacts']
+              if sum(a['name'] == name and not a['expired'] for a in artifacts) == 1:
+                  print('Paquete de publicación confirmado.')
+                  time.sleep(15)
+                  break
+              time.sleep(10)
+          else:
+              raise RuntimeError('El paquete de publicación no está disponible.')
+          PY
       - uses: actions/deploy-pages@v4
         id: deploy
+        with:
+          artifact_name: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
