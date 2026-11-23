@@ -21,4 +21,38 @@ function selectedPrice(){const picks=selections();if(!picks.length){if(p.type===
 document.querySelectorAll('#options select').forEach(s=>s.onchange=selectedPrice);document.querySelectorAll('[data-img]').forEach(b=>b.onclick=()=>{$('.detail-main').src=imgs[Number(b.dataset.img)]});$('#share').href='https://wa.me/?text='+encodeURIComponent(text(p.name)+' · El Cuquet (catálogo de pruebas, sin compras)\n'+location.href);if(!$('#product').open)$('#product').showModal();selectedPrice()}
 async function load(){try{$('#refresh').disabled=true;const r=await fetch('./catalog.json',{cache:'no-cache'});if(!r.ok)throw Error('Catálogo no disponible');const next=await r.json();if(next.source!=='https://pruebas-app.elcuquet.net'||!Array.isArray(next.products))throw Error('Origen de catálogo no válido');data=next;const selected=$('#category').value;$('#category').innerHTML='<option value="">Todas las categorías</option>'+data.categories.filter(c=>c.count>0).sort((a,b)=>text(a.name).localeCompare(text(b.name),'es')).map(c=>`<option value="${c.id}">${esc(text(c.name))}</option>`).join('');$('#category').value=selected;const cats=data.categories.filter(c=>!c.parent&&c.count>0).sort((a,b)=>text(a.name).localeCompare(text(b.name),'es'));$('#chips').innerHTML='<button data-id="">Todo</button>'+cats.map(c=>`<button data-id="${c.id}">${esc(text(c.name))}</button>`).join('');document.querySelectorAll('#chips button').forEach(b=>b.onclick=()=>{homeMode='all';$('#heading').textContent='Todo el catálogo';$('#category').value=b.dataset.id;limit=24;render();location.hash='catalogo'});$('#updated').textContent='Datos de pruebas leídos el '+new Date(data.updatedAt).toLocaleString('es-ES')+' · Actualización programada cada hora';render();route()}catch(e){$('#status').textContent='No se pudo cargar el catálogo de pruebas. Comprueba tu conexión y pulsa Actualizar.'}finally{$('#refresh').disabled=false}}
 document.querySelectorAll('[data-home-category]').forEach(b=>b.onclick=()=>openHome(b.dataset.homeCategory));$('#home-all').onclick=()=>openHome('all');
-$('#search').oninput=()=>{limit=24;render()};$('#category').onchange=()=>{homeMode='all';$('#heading').textContent='Todo el catálogo';limit=24;render()};$('#more').onclick=()=>{limit+=24;render()};$('#refresh').onclick=load;document.querySelector('.bottom a[href="#catalogo"]').addEventListener('click',()=>openHome('all'));$('#product .close').onclick=()=>closeProduct();$('#product').addEventListener('cancel',()=>{location.hash='catalogo'});$('#install-dialog .close').onclick=()=>$('#install-dialog').close();$('#install').onclick=()=>$('#install-dialog').showModal();$('#dock-install').onclick=()=>$('#install-dialog').showModal();addEventListener('hashchange',route);addEventListener('online',render);addEventListener('offline',render);route();load();if('serviceWorker'in navigator){navigator.serviceWorker.register('./sw.js',{scope:'./'}).then(()=>navigator.serviceWorker.ready).then(()=>{$('#pwa-status').textContent='Modo sin conexión preparado para la interfaz y el último catálogo consultado. Las fotos necesitan conexión.'}).catch(()=>{$('#pwa-status').textContent='No se pudo activar el modo sin conexión en este navegador.'})}else{$('#pwa-status').textContent='Este navegador no permite activar el modo sin conexión.'}
+$('#search').oninput=()=>{limit=24;render()};$('#category').onchange=()=>{homeMode='all';$('#heading').textContent='Todo el catálogo';limit=24;render()};$('#more').onclick=()=>{limit+=24;render()};$('#refresh').onclick=load;document.querySelector('.bottom a[href="#catalogo"]').addEventListener('click',()=>openHome('all'));$('#product .close').onclick=()=>closeProduct();$('#product').addEventListener('cancel',()=>{location.hash='catalogo'});$('#install-dialog .close').onclick=()=>$('#install-dialog').close();$('#install').onclick=()=>$('#install-dialog').showModal();$('#dock-install').onclick=()=>$('#install-dialog').showModal();addEventListener('hashchange',route);addEventListener('online',render);addEventListener('offline',render);route();load();const APP_VERSION='0.1.4';
+let updateInProgress=false;
+const updateMessage=message=>{for(const id of ['#update-status','#update-dialog-status']){const el=$(id);if(el)el.textContent=message}};
+async function updateApplication(manual=false){
+ if(updateInProgress)return;
+ if(!navigator.onLine){if(manual)updateMessage('Sin conexión. Inténtalo cuando tengas internet.');return}
+ if(!('serviceWorker' in navigator)){if(manual)updateMessage('Este navegador no admite actualizaciones automáticas.');return}
+ updateInProgress=true;
+ try{
+  if(manual)updateMessage('Buscando una versión nueva…');
+  const registration=await navigator.serviceWorker.getRegistration('./');
+  if(registration)await registration.update();
+  const response=await fetch('./version.json?check='+Date.now(),{cache:'no-store'});
+  if(!response.ok)throw Error('No se pudo consultar la versión');
+  const info=await response.json();
+  if(!info.version||!/^[0-9]+\.[0-9]+\.[0-9]+$/.test(info.version))throw Error('Versión no válida');
+  if(info.version!==APP_VERSION){
+   if(manual)updateMessage('Versión '+info.version+' disponible. Actualizando…');
+   if(registration){
+    await registration.update();
+    await new Promise(resolve=>setTimeout(resolve,800));
+   }
+   // El service worker activo sirve siempre el documento desde la red si hay conexión.
+   location.replace('./?v='+encodeURIComponent(info.version)+'#'+(location.hash.slice(1)||'inicio'));
+   return;
+  }
+  if(manual){await load();updateMessage('Aplicación actualizada. Versión '+APP_VERSION+'.');}
+ }catch(error){if(manual)updateMessage('No se pudo comprobar la actualización. Revisa la conexión e inténtalo de nuevo.')}
+ finally{updateInProgress=false}
+}
+$('#update-app').onclick=()=>updateApplication(true);
+$('#update-app-dialog').onclick=()=>updateApplication(true);
+addEventListener('pageshow',()=>{updateApplication(false)});
+addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')updateApplication(false)});
+if('serviceWorker'in navigator){navigator.serviceWorker.register('./sw.js',{scope:'./',updateViaCache:'none'}).then(()=>navigator.serviceWorker.ready).then(()=>{$('#pwa-status').textContent='Modo sin conexión preparado para la interfaz y el último catálogo consultado. Las fotos necesitan conexión.'}).catch(()=>{$('#pwa-status').textContent='No se pudo activar el modo sin conexión en este navegador.'})}else{$('#pwa-status').textContent='Este navegador no permite activar el modo sin conexión.'}
