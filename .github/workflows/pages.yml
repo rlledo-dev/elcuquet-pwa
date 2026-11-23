@@ -26,7 +26,7 @@ jobs:
       - run: pip install Pillow==11.3.0
       - run: |
           mkdir -p dist
-          cp index.html app.js style.css sw.js manifest.webmanifest dist/
+          cp index.html app.js style.css sw.js manifest.webmanifest version.json dist/
           touch dist/.nojekyll
           python scripts/catalog.py
       - uses: actions/configure-pages@v5
