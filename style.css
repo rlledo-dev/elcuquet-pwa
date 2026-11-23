@@ -44,3 +44,6 @@ nav.bottom > :is(a,button):focus-visible{outline:2px solid #fff;outline-offset:-
 .home-category-tile strong{padding:3px 12px 0}
 .home-category-tile .home-category-description{display:block;padding:0 18px;color:var(--muted);font-size:.88rem;line-height:1.5}
 @media(max-width:560px){.home-category-tile{padding-bottom:16px;gap:8px}.home-category-tile .home-category-description{padding:0 10px;font-size:.78rem;line-height:1.4}.home-category-photo{aspect-ratio:1/1}}
+
+/* Versión discreta en la esquina inferior derecha, sin ampliar la isla */
+nav.bottom .dock-version{position:absolute;right:17px;bottom:3px;color:#fff;-webkit-text-fill-color:#fff;font-size:9px;line-height:1;font-weight:500;letter-spacing:0;pointer-events:none;white-space:nowrap;z-index:2}
