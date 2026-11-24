@@ -1,66 +1,54 @@
 'use strict';
-const $=s=>document.querySelector(s);let data=null,limit=24,lastFocus=null,homeMode='all',activeCategory='';
+const $=s=>document.querySelector(s);let data=null,limit=24,lastFocus=null,activeCategory='';
 const categoryById=id=>data?.categories?.find(c=>String(c.id)===String(id));
-const descendantsOf=(id,root)=>{let c=categoryById(id);const seen=new Set();while(c&&!seen.has(String(c.id))){if(norm(c.name)===root)return true;seen.add(String(c.id));c=categoryById(c.parent)}return false};
-const rentalMatch=p=>p.categories?.some(c=>/alquiler|servicios? alquiler|maquinas?/.test(norm(c.name)))||/alquiler|maquina de palomitas|maquina de algodon|fuente de chocolate/.test(norm(p.name));
-const groupTerms={decoracion:['decoracion sala','decoracion mesa','guirnaldas','banderines','pinatas','manteles','vasos','platos','servilletas','banners','flecos','velas','bengalas'],chuches:['especialidades con chuches','chuches','golosinas','tartas de chuches','brochetas','ramos de chuches'],regalos:['detalles personalizados','regalos personalizados','tarta panales','tartas de panales','regalos','recuerdos'],celebraciones:['celebraciones especiales','baby','boda','comuniones','comunion','bautizos','bautizo','halloween','navidad','pascua','cumpleanos']};
-const categoryMatches=(p,terms)=>p.categories?.some(c=>terms.some(term=>descendantsOf(c.id,term)||norm(c.name)===term));
-const candleMatch=p=>categoryMatches(p,['velas','bengalas'])||p.categories?.some(c=>/\b(velas?|bengalas?)\b/.test(norm(c.name)))||/\b(velas?|bengalas?)\b/.test(norm(p.name));
-const pinataMatch=p=>categoryMatches(p,['pinatas'])||p.categories?.some(c=>/\bpinatas?\b/.test(norm(c.name)))||/\bpinatas?\b/.test(norm(p.name));
-const groupMatch=(p,mode)=>mode==='globos'?categoryMatches(p,['globos']):mode==='alquiler'?rentalMatch(p):mode==='decoracion'?(categoryMatches(p,groupTerms.decoracion)||candleMatch(p)||pinataMatch(p))&&!categoryMatches(p,['globos']):mode==='chuches'?categoryMatches(p,groupTerms.chuches):mode==='regalos'?categoryMatches(p,groupTerms.regalos):mode==='celebraciones'?categoryMatches(p,groupTerms.celebraciones):true;
-const homeMatch=p=>groupMatch(p,homeMode);
-const homeTitles={globos:'Globos',alquiler:'Alquiler de máquinas',decoracion:'Decoración de fiestas',chuches:'Chuches y dulces',regalos:'Regalos personalizados',celebraciones:'Celebraciones especiales'};
-const within=(id,ancestor)=>{const seen=new Set();while(id&&!seen.has(String(id))){if(String(id)===String(ancestor))return true;seen.add(String(id));id=categoryById(id)?.parent}return false};
-const categoryProducts=(id,p)=>id==='virtual-pinatas'?pinataMatch(p):id==='virtual-velas'?candleMatch(p):p.categories?.some(c=>within(c.id,id));
-function categoryNav(){
- const scoped=data.products.filter(homeMatch);
- const available=data.categories.filter(c=>scoped.some(p=>categoryProducts(c.id,p)));
- const ids=new Set(available.map(c=>String(c.id)));
- let roots=available.filter(c=>!ids.has(String(c.parent)));
- if(homeMode!=='all'){
- const terms=homeMode==='globos'?['globos']:homeMode==='alquiler'?[]:groupTerms[homeMode]||[];
- const matched=available.filter(c=>terms.includes(norm(c.name))||(homeMode==='alquiler'&&/alquiler|maquinas?/.test(norm(c.name))));
- const matchedIds=new Set(matched.map(c=>String(c.id)));
- const top=matched.filter(c=>!matched.some(a=>a.id!==c.id&&within(c.id,a.id)));
- if(top.length)roots=top;
- if(roots.length===1&&available.some(c=>String(c.parent)===String(roots[0].id)))roots=available.filter(c=>String(c.parent)===String(roots[0].id));
- }
- if(homeMode==='decoracion'&&scoped.some(candleMatch))roots=[...roots.filter(c=>norm(c.name)!=='velas'),{id:'virtual-velas',name:'Velas'}];
- if(homeMode==='decoracion'&&scoped.some(pinataMatch))roots=[...roots.filter(c=>norm(c.name)!=='pinatas'),{id:'virtual-pinatas',name:'Piñatas'}];
- const current=activeCategory==='virtual-pinatas'?{id:'virtual-pinatas',name:'Piñatas'}:activeCategory==='virtual-velas'?{id:'virtual-velas',name:'Velas'}:categoryById(activeCategory);
- const children=(current?available.filter(c=>String(c.parent)===String(current.id)&&!(homeMode==='decoracion'&&['velas','pinatas'].includes(norm(c.name)))):roots).sort((a,b)=>text(a.name).localeCompare(text(b.name),'es'));
- const parent=current&&categoryById(current.parent);
- const back=current?(roots.some(c=>String(c.id)===String(current.id))?'':parent&&ids.has(String(parent.id))?String(parent.id):''):null;
- const title=current?text(current.name):homeTitles[homeMode]||'Todo el catálogo';
- $('#heading').textContent=title;
- const select=$('#category');
- select.innerHTML='<option value="">'+esc(current?'Subcategorías de '+title:homeMode==='all'?'Todas las categorías':'Subcategorías de '+title)+'</option>'+children.map(c=>`<option value="${esc(c.id)}">${esc(text(c.name))}</option>`).join('');
- select.hidden=!children.length;
- const chips=$('#chips');
- chips.innerHTML=(current?`<button data-back="${esc(back)}">‹ Volver</button>`:homeMode!=='all'?'<button data-home-back>‹ Categorías principales</button>':'')+children.map(c=>`<button data-id="${esc(c.id)}">${esc(text(c.name))}</button>`).join('');
- chips.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>chooseCategory(b.dataset.id));
- chips.querySelector('[data-back]')?.addEventListener('click',()=>chooseCategory(back));
- chips.querySelector('[data-home-back]')?.addEventListener('click',()=>{openHome('all');location.hash='inicio'});
-}
-function chooseCategory(id){activeCategory=id;limit=24;render();location.hash='catalogo'}
-function openHome(mode){activeCategory='';homeMode=mode;$('#search').value='';$('#category').value='';limit=24;location.hash='catalogo';render();}
-
 const text=html=>{const d=new DOMParser().parseFromString(String(html||''),'text/html');return d.body.textContent||''};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const norm=s=>text(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const within=(id,ancestor)=>{const seen=new Set();while(id&&!seen.has(String(id))){if(String(id)===String(ancestor))return true;seen.add(String(id));id=categoryById(id)?.parent}return false};
+const categoryProducts=(id,p)=>p.categories?.some(c=>within(c.id,id));
+const primaryCategoryOrder=['globos','alquiler de maquinas','decoracion de fiestas','chuches y dulces','regalos personalizados','celebraciones especiales'];
+const categorySort=(a,b)=>{const ai=primaryCategoryOrder.indexOf(norm(a.name)),bi=primaryCategoryOrder.indexOf(norm(b.name));if(ai!==bi)return(ai<0?999:ai)-(bi<0?999:bi);return(Number(a.menu_order||0)-Number(b.menu_order||0))||text(a.name).localeCompare(text(b.name),'es')};
+const visibleCategories=()=>data.categories.filter(c=>data.products.some(p=>categoryProducts(c.id,p)));
+function categoryNav(){
+ const available=visibleCategories(),ids=new Set(available.map(c=>String(c.id)));
+ const roots=available.filter(c=>!ids.has(String(c.parent))).sort(categorySort);
+ const current=activeCategory?categoryById(activeCategory):null;
+ const children=(current?available.filter(c=>String(c.parent)===String(current.id)):roots).sort(categorySort);
+ const parent=current&&categoryById(current.parent);
+ const back=current?(parent&&ids.has(String(parent.id))?String(parent.id):''):null;
+ const title=current?text(current.name):'Todo el catálogo';
+ $('#heading').textContent=title;
+ const select=$('#category');
+ select.innerHTML='<option value="">'+esc(current?'Subcategorías de '+title:'Todas las categorías')+'</option>'+children.map(c=>`<option value="${esc(c.id)}">${esc(text(c.name))}</option>`).join('');
+ select.hidden=!children.length;
+ const chips=$('#chips');
+ chips.innerHTML=(current?`<button data-back="${esc(back)}">‹ Volver</button>`:'')+children.map(c=>`<button data-id="${esc(c.id)}">${esc(text(c.name))}</button>`).join('');
+ chips.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>chooseCategory(b.dataset.id));
+ chips.querySelector('[data-back]')?.addEventListener('click',()=>chooseCategory(back));
+}
+function chooseCategory(id){activeCategory=String(id||'');limit=24;render();location.hash='catalogo'}
+function openHome(id=''){activeCategory=String(id||'');$('#search').value='';limit=24;location.hash='catalogo';render()}
+function renderHomeCategories(){
+ const host=$('#home-category-grid');if(!host)return;
+ const available=visibleCategories(),ids=new Set(available.map(c=>String(c.id)));
+ const roots=available.filter(c=>!ids.has(String(c.parent))).sort(categorySort);
+ host.innerHTML=roots.map(c=>{const rows=data.products.filter(p=>categoryProducts(c.id,p)),candidate=rows.find(p=>image(p));return `<button class="home-category-tile" data-home-category="${esc(c.id)}"><span class="home-category-photo">${candidate?`<img src="${esc(image(candidate))}" alt="${esc(text(c.name))}" loading="lazy">`:'<span>Imagen no disponible</span>'}</span><span class="home-category-content"><strong>${esc(text(c.name))}</strong><span class="home-category-description">${rows.length} productos</span></span></button>`}).join('');
+ host.querySelectorAll('[data-home-category]').forEach(b=>b.onclick=()=>openHome(b.dataset.homeCategory));
+}
+
 const money=(value,prices)=>value!==''&&value!=null?new Intl.NumberFormat('es-ES',{style:'currency',currency:prices.currency_code||'EUR'}).format(Number(value)/10**(prices.currency_minor_unit??2)):'Precio no disponible';
 const price=p=>p.prices?.price_range?'Desde '+money(p.prices.price_range.min_amount,p.prices):money(p.prices?.price,p.prices||{});
 const image=p=>(p.images||[]).find(i=>/^https:\/\/pruebas-app\.elcuquet\.net\//.test(i.src))?.src||'';
 function route(){const hash=location.hash.slice(1)||'inicio';if(!hash.startsWith('producto/'))closeProduct(false);$('#home-categories').hidden=hash!=='inicio';$('#hero').hidden=true;$('.catalog').hidden=hash==='info';$('#about').hidden=hash!=='info';document.querySelectorAll('.bottom a[href^="#"]').forEach(a=>a.setAttribute('aria-current',a.hash==='#'+(hash==='categorias'?'catalogo':hash.startsWith('producto/')?'catalogo':hash)?'page':'false'));if(hash==='categorias')$('#category').focus();if(hash.startsWith('producto/')&&data){const p=data.products.find(p=>String(p.id)===hash.split('/')[1]);if(p)openProduct(p);else{$('#status').textContent='Este producto no está disponible en el catálogo de pruebas.';location.hash='catalogo'}}}
-function render(){if(!data)return;categoryNav();const q=norm($('#search').value),cat=activeCategory;const rows=data.products.filter(p=>homeMatch(p)&&(!cat||categoryProducts(cat,p))&&(!q||norm(p.name+' '+p.sku+' '+p.description+' '+p.short_description+' '+p.categories.map(c=>c.name).join(' ')).includes(q)));$('#status').textContent=`${rows.length} productos · Catálogo de pruebas${!navigator.onLine?' · Sin conexión; datos guardados':''}`;$('#grid').innerHTML=rows.slice(0,limit).map(p=>`<article class="card"><a href="#producto/${p.id}"><div class="photo">${image(p)?`<img src="${esc(image(p))}" alt="${esc(text(p.name))}" loading="lazy" decoding="async">`:'<span>Imagen no disponible</span>'}${p.type==='variable'?'<span class="badge">Varias opciones</span>':''}</div><div class="category">${esc(text(p.categories?.[0]?.name||'El Cuquet'))}</div><h3>${esc(text(p.name))}</h3><span class="price">${esc(price(p))}</span></a></article>`).join('');$('#empty').hidden=rows.length!==0;$('#more').hidden=rows.length<=limit;document.querySelectorAll('#grid img').forEach(i=>i.onerror=()=>{i.replaceWith(Object.assign(document.createElement('span'),{textContent:'Imagen no disponible'}))});document.querySelectorAll('#chips button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.id===cat)))}
+function render(){if(!data)return;categoryNav();const q=norm($('#search').value),cat=activeCategory;const rows=data.products.filter(p=>(!cat||categoryProducts(cat,p))&&(!q||norm(p.name+' '+p.sku+' '+p.description+' '+p.short_description+' '+p.categories.map(c=>c.name).join(' ')).includes(q)));$('#status').textContent=`${rows.length} productos · Catálogo de pruebas${!navigator.onLine?' · Sin conexión; datos guardados':''}`;$('#grid').innerHTML=rows.slice(0,limit).map(p=>`<article class="card"><a href="#producto/${p.id}"><div class="photo">${image(p)?`<img src="${esc(image(p))}" alt="${esc(text(p.name))}" loading="lazy" decoding="async">`:'<span>Imagen no disponible</span>'}${p.type==='variable'?'<span class="badge">Varias opciones</span>':''}</div><div class="category">${esc(text(p.categories?.[0]?.name||'El Cuquet'))}</div><h3>${esc(text(p.name))}</h3><span class="price">${esc(price(p))}</span></a></article>`).join('');$('#empty').hidden=rows.length!==0;$('#more').hidden=rows.length<=limit;document.querySelectorAll('#grid img').forEach(i=>i.onerror=()=>{i.replaceWith(Object.assign(document.createElement('span'),{textContent:'Imagen no disponible'}))});document.querySelectorAll('#chips button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.id===cat)))}
 function closeProduct(back=true){if($('#product').open){$('#product').close();if(back&&location.hash.startsWith('#producto/'))location.hash='catalogo';lastFocus?.focus()}}
 function openProduct(p){lastFocus=document.activeElement;const variants=p.variantDetails||[];const attrs=(p.attributes||[]).filter(a=>a.has_variations||a.variation||variants.some(v=>(v.attributes||[]).some(x=>x.name===a.name)));const imgs=[...new Set((p.images||[]).map(i=>i.src).filter(u=>/^https:\/\/pruebas-app\.elcuquet\.net\//.test(u)))];$('#detail').innerHTML=`<div class="detail-layout"><div><img class="detail-main" src="${esc(imgs[0]||'./logo.jpeg')}" alt="${esc(text(p.name))}"><div class="thumbs">${imgs.map((src,i)=>`<button data-img="${i}" aria-label="Foto ${i+1}"><img src="${esc(src)}" alt=""></button>`).join('')}</div></div><div><span class="eyebrow">CATÁLOGO DE PRUEBAS</span><h2>${esc(text(p.name))}</h2><p class="price" id="detail-price">${esc(price(p))}</p><p>${esc(text(p.short_description||p.description))}</p>${p.sku?`<p>Referencia: ${esc(p.sku)}</p>`:''}<div id="options">${attrs.map((a,i)=>`<label for="attr-${i}">${esc(text(a.name))}</label><select id="attr-${i}" data-attr="${esc(a.name)}"><option value="">Selecciona una opción</option>${(a.terms||a.options||[]).map(t=>`<option value="${esc(typeof t==='string'?t:t.name)}">${esc(typeof t==='string'?t:t.name)}</option>`).join('')}</select>`).join('')}</div><p id="availability">${p.is_in_stock?'Disponible en pruebas':'Agotado en pruebas'}</p><p class="notice">Solo consulta. No se pueden realizar pedidos, pagos ni reservas de stock.</p><a id="share" class="primary" target="_blank" rel="noopener noreferrer">Compartir por WhatsApp</a></div></div>`;
 const selections=()=>[...document.querySelectorAll('#options select')].map(s=>({name:s.dataset.attr,value:s.value}));
 function selectedPrice(){const picks=selections();if(!picks.length){if(p.type==='variable')$('#availability').textContent=variants.length?'Selecciona una variación cuando esté disponible.':'Variaciones pendientes de conexión; precio orientativo de la ficha.';return}if(picks.some(x=>!x.value)){$('#detail-price').textContent=price(p);$('#availability').textContent='Selecciona todas las opciones para consultar precio y disponibilidad.';return}const match=variants.find(v=>picks.every(a=>(v.attributes||[]).some(b=>norm(b.name)===norm(a.name)&&(!b.value||norm(b.value)===norm(a.value)))));$('#detail-price').textContent=match?price(match):'Combinación no disponible';$('#availability').textContent=match?(match.is_in_stock?'Disponible en pruebas':'Agotado en pruebas'):'No se ha encontrado esta combinación.';if(match&&image(match))$('.detail-main').src=image(match)}
 document.querySelectorAll('#options select').forEach(s=>s.onchange=selectedPrice);document.querySelectorAll('[data-img]').forEach(b=>b.onclick=()=>{$('.detail-main').src=imgs[Number(b.dataset.img)]});$('#share').href='https://wa.me/?text='+encodeURIComponent(text(p.name)+' · El Cuquet (catálogo de pruebas, sin compras)\n'+location.href);if(!$('#product').open)$('#product').showModal();selectedPrice()}
-async function load(){try{$('#refresh').disabled=true;const r=await fetch('./catalog.json',{cache:'no-cache'});if(!r.ok)throw Error('Catálogo no disponible');const next=await r.json();if(next.source!=='https://pruebas-app.elcuquet.net'||!Array.isArray(next.products))throw Error('Origen de catálogo no válido');data=next;$('#home-globos-img').src='https://pruebas-app.elcuquet.net/wp-content/uploads/2025/02/image26.jpeg';$('#home-globos-img').alt='Arco de globos rosa, blanco y oro realizado por El Cuquet';const rentalPhoto=data.products.find(p=>rentalMatch(p)&&image(p));if(rentalPhoto){$('#home-alquiler-img').src=image(rentalPhoto)}else{$('#home-alquiler-img').alt='Fotografía de alquiler pendiente de catálogo';}for(const mode of ['decoracion','chuches','regalos','celebraciones']){const target=$('#home-'+mode+'-img');if(mode==='decoracion'){target.src='https://pruebas-app.elcuquet.net/wp-content/uploads/2026/11/categoria-decoracion-fiestas-el-cuquet.jpg';target.alt='Mesa decorada de cumpleaños con guirnalda y piñata';continue;}if(mode==='celebraciones'){target.src='https://pruebas-app.elcuquet.net/wp-content/uploads/2026/11/categoria-celebraciones-especiales-el-cuquet.jpeg';target.alt='Baby shower Thiago con decoración de globos verdes, blancos y dorados';continue;}if(mode==='chuches'){target.src='https://pruebas-app.elcuquet.net/wp-content/uploads/2026/11/categoria-chuches-el-cuquet.jpg';target.alt='Tarta de chuches multicolor de El Cuquet';continue;}const candidate=data.products.find(p=>groupMatch(p,mode)&&image(p));if(target&&candidate)target.src=image(candidate);else if(target)target.alt='Fotografía pendiente de disponibilidad en el catálogo';}$('#updated').textContent='Datos de pruebas leídos el '+new Date(data.updatedAt).toLocaleString('es-ES')+' · Actualización programada cada hora';render();route()}catch(e){$('#status').textContent='No se pudo cargar el catálogo de pruebas. Comprueba tu conexión y pulsa Actualizar.'}finally{$('#refresh').disabled=false}}
-document.querySelectorAll('[data-home-category]').forEach(b=>b.onclick=()=>openHome(b.dataset.homeCategory));$('#home-all').onclick=()=>openHome('all');
-$('#search').oninput=()=>{limit=24;render()};$('#category').onchange=()=>{if($('#category').value)chooseCategory($('#category').value)};$('#more').onclick=()=>{limit+=24;render()};$('#refresh').onclick=load;document.querySelector('.bottom a[href="#catalogo"]').addEventListener('click',()=>openHome('all'));$('#product .close').onclick=()=>closeProduct();$('#product').addEventListener('cancel',()=>{location.hash='catalogo'});$('#install-dialog .close').onclick=()=>$('#install-dialog').close();$('#install').onclick=()=>$('#install-dialog').showModal();$('#dock-install').onclick=()=>$('#install-dialog').showModal();addEventListener('hashchange',route);addEventListener('online',render);addEventListener('offline',render);route();load();const APP_VERSION='0.1.16';
+async function load(){try{$('#refresh').disabled=true;const r=await fetch('./catalog.json',{cache:'no-cache'});if(!r.ok)throw Error('Catálogo no disponible');const next=await r.json();if(next.source!=='https://pruebas-app.elcuquet.net'||!Array.isArray(next.products)||!Array.isArray(next.categories))throw Error('Origen de catálogo no válido');data=next;renderHomeCategories();$('#updated').textContent='Datos de pruebas leídos el '+new Date(data.updatedAt).toLocaleString('es-ES')+' · Actualización programada cada hora';render();route()}catch(e){$('#status').textContent='No se pudo cargar el catálogo de pruebas. Comprueba tu conexión y pulsa Actualizar.'}finally{$('#refresh').disabled=false}}
+$('#home-all').onclick=()=>openHome('');
+$('#search').oninput=()=>{limit=24;render()};$('#category').onchange=()=>{if($('#category').value)chooseCategory($('#category').value)};$('#more').onclick=()=>{limit+=24;render()};$('#refresh').onclick=load;document.querySelector('.bottom a[href="#catalogo"]').addEventListener('click',()=>openHome(''));$('#product .close').onclick=()=>closeProduct();$('#product').addEventListener('cancel',()=>{location.hash='catalogo'});$('#install-dialog .close').onclick=()=>$('#install-dialog').close();$('#install').onclick=()=>$('#install-dialog').showModal();$('#dock-install').onclick=()=>$('#install-dialog').showModal();addEventListener('hashchange',route);addEventListener('online',render);addEventListener('offline',render);route();load();const APP_VERSION='0.1.17';
 let updateInProgress=false;
 const updateMessage=message=>{for(const id of ['#update-status','#update-dialog-status']){const el=$(id);if(el)el.textContent=message}};
 async function updateApplication(manual=false){
