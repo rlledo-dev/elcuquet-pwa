@@ -1,4 +1,4 @@
-const CACHE='elcuquet-pwa-0.1.13';
+const CACHE='elcuquet-pwa-0.1.14';
 const ASSETS=['./index.html','./app.js','./style.css','./manifest.webmanifest','./logo.jpeg','./icon-180.png','./icon-192.png','./icon-512.png'];
 self.addEventListener('install',event=>{
  event.waitUntil(caches.open(CACHE).then(async cache=>{
