@@ -12,7 +12,7 @@ permissions:
   id-token: write
 concurrency:
   group: pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -29,7 +29,7 @@ jobs:
           mkdir -p dist
           cp index.html app.js style.css sw.js manifest.webmanifest version.json dist/
           touch dist/.nojekyll
-          python scripts/catalog.py
+          python scripts/publish_assets.py
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
