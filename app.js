@@ -28,6 +28,14 @@ function categoryNav(){
 }
 function chooseCategory(id){activeCategory=String(id||'');limit=24;render();location.hash='catalogo'}
 function openHome(id=''){activeCategory=String(id||'');$('#search').value='';limit=24;location.hash='catalogo';render()}
+function goToStart(event){
+ event.preventDefault();
+ closeProduct(false);
+ activeCategory='';$('#search').value='';limit=24;
+ if(location.hash!=='#inicio')location.hash='inicio';
+ route();render();
+ window.scrollTo({top:0,left:0,behavior:'instant'});
+}
 function renderHomeCategories(){
  const host=$('#home-category-grid');if(!host)return;
  const available=visibleCategories(),ids=new Set(available.map(c=>String(c.id)));
@@ -48,7 +56,8 @@ function selectedPrice(){const picks=selections();if(!picks.length){if(p.type===
 document.querySelectorAll('#options select').forEach(s=>s.onchange=selectedPrice);document.querySelectorAll('[data-img]').forEach(b=>b.onclick=()=>{$('.detail-main').src=imgs[Number(b.dataset.img)]});$('#share').href='https://wa.me/?text='+encodeURIComponent(text(p.name)+' · El Cuquet (catálogo de pruebas, sin compras)\n'+location.href);if(!$('#product').open)$('#product').showModal();selectedPrice()}
 async function load(){try{$('#refresh').disabled=true;const r=await fetch('./catalog.json',{cache:'no-cache'});if(!r.ok)throw Error('Catálogo no disponible');const next=await r.json();if(next.source!=='https://pruebas-app.elcuquet.net'||!Array.isArray(next.products)||!Array.isArray(next.categories))throw Error('Origen de catálogo no válido');data=next;renderHomeCategories();$('#updated').textContent='Datos de pruebas leídos el '+new Date(data.updatedAt).toLocaleString('es-ES')+' · Actualización programada cada hora';render();route()}catch(e){$('#status').textContent='No se pudo cargar el catálogo de pruebas. Comprueba tu conexión y pulsa Actualizar.'}finally{$('#refresh').disabled=false}}
 $('#home-all').onclick=()=>openHome('');
-$('#search').oninput=()=>{limit=24;render()};$('#category').onchange=()=>{if($('#category').value)chooseCategory($('#category').value)};$('#more').onclick=()=>{limit+=24;render()};$('#refresh').onclick=load;document.querySelector('.bottom a[href="#catalogo"]').addEventListener('click',()=>openHome(''));$('#product .close').onclick=()=>closeProduct();$('#product').addEventListener('cancel',()=>{location.hash='catalogo'});$('#install-dialog .close').onclick=()=>$('#install-dialog').close();$('#install').onclick=()=>$('#install-dialog').showModal();$('#dock-install').onclick=()=>$('#install-dialog').showModal();addEventListener('hashchange',route);addEventListener('online',render);addEventListener('offline',render);route();load();const APP_VERSION='0.1.19';
+document.querySelectorAll('a[href="#inicio"]').forEach(a=>a.addEventListener('click',goToStart));
+$('#search').oninput=()=>{limit=24;render()};$('#category').onchange=()=>{if($('#category').value)chooseCategory($('#category').value)};$('#more').onclick=()=>{limit+=24;render()};$('#refresh').onclick=load;document.querySelector('.bottom a[href="#catalogo"]').addEventListener('click',()=>openHome(''));$('#product .close').onclick=()=>closeProduct();$('#product').addEventListener('cancel',()=>{location.hash='catalogo'});$('#install-dialog .close').onclick=()=>$('#install-dialog').close();$('#install').onclick=()=>$('#install-dialog').showModal();$('#dock-install').onclick=()=>$('#install-dialog').showModal();addEventListener('hashchange',route);addEventListener('online',render);addEventListener('offline',render);route();load();const APP_VERSION='0.1.20';
 let updateInProgress=false;
 const updateMessage=message=>{for(const id of ['#update-status','#update-dialog-status']){const el=$(id);if(el)el.textContent=message}};
 async function updateApplication(manual=false){
