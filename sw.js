@@ -1,36 +1,38 @@
-const CACHE='elcuquet-pwa-0.1.23';
-const ASSETS=['./index.html','./app.js?v=0.1.23','./style.css?v=0.1.23','./manifest.webmanifest','./logo.jpeg','./icon-180.png','./icon-192.png','./icon-512.png'];
+const CACHE='elcuquet-pwa-0.1.24';
+const ASSETS=['./index.html','./app.js?v=0.1.24','./style.css?v=0.1.24','./manifest.webmanifest','./logo.jpeg','./icon-180.png','./icon-192.png','./icon-512.png'];
 self.addEventListener('install',event=>{
- event.waitUntil(caches.open(CACHE).then(async cache=>{
-  await Promise.all(ASSETS.map(async path=>{
+ event.waitUntil((async()=>{
+  const cache=await caches.open(CACHE);
+  await Promise.allSettled(ASSETS.map(async path=>{
    const response=await fetch(new Request(path,{cache:'reload'}));
-   if(!response.ok)throw Error('Recurso no disponible: '+path);
-   await cache.put(path,response);
+   if(response.ok)await cache.put(path,response);
   }));
- }));
- self.skipWaiting();
+  await self.skipWaiting();
+ })());
 });
 self.addEventListener('activate',event=>{
- event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('elcuquet-pwa-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));
+ event.waitUntil(self.clients.claim());
 });
 self.addEventListener('fetch',event=>{
- const request=event.request;
- const url=new URL(request.url);
+ const request=event.request,url=new URL(request.url);
  if(request.method!=='GET'||url.origin!==self.location.origin||!url.pathname.startsWith('/elcuquet-pwa/'))return;
- // Version y catálogo: red primero, copia local únicamente para uso sin conexión.
- if(url.pathname.endsWith('/version.json')||url.pathname.endsWith('/catalog.json')){
-  event.respondWith(fetch(new Request(request,{cache:'no-store'})).then(response=>{
-   if(response.ok&&!url.pathname.endsWith('/version.json')){const copy=response.clone();event.waitUntil(caches.open(CACHE).then(cache=>cache.put('./catalog.json',copy)))}
-   return response;
-  }).catch(async()=>url.pathname.endsWith('/catalog.json')?(await caches.match('./catalog.json')||new Response('Sin conexión',{status:503})):new Response('Sin conexión',{status:503})));
-  return;
- }
- // Red primero para HTML/JS/CSS. Cache solo para funcionar sin conexión.
- event.respondWith(fetch(new Request(request,{cache:'no-store'})).then(response=>{
-  if(response.ok){const copy=response.clone();event.waitUntil(caches.open(CACHE).then(cache=>cache.put(request.mode==='navigate'?'./index.html':request,copy)))}
-  return response;
- }).catch(async()=>{
-  const cached=await caches.match(request.mode==='navigate'?'./index.html':request);
-  return cached||new Response('Sin conexión',{status:503});
- }));
+ const version=url.pathname.endsWith('/version.json'),catalog=url.pathname.endsWith('/catalog.json');
+ const key=request.mode==='navigate'?'./index.html':catalog?'./catalog.json':request;
+ event.respondWith((async()=>{
+  try{
+   const response=await fetch(new Request(request,{cache:'no-store'}));
+   if(response.ok){
+    if(!version){try{await (await caches.open(CACHE)).put(key,response.clone())}catch{}}
+    return response;
+   }
+   if(version)return response;
+  }catch{}
+  if(!version){
+   const current=await caches.open(CACHE);
+   const cached=await current.match(key)||await caches.match(key);
+   if(cached)return cached;
+  }
+  if(request.mode==='navigate')return new Response('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><h1>El Cuquet</h1><p>No se pudo cargar la aplicación. Comprueba la conexión.</p><a href="./index.html">Volver a intentar</a>',{status:503,headers:{'Content-Type':'text/html; charset=utf-8'}});
+  return new Response('Sin conexión',{status:503});
+ })());
 });
