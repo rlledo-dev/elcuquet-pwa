@@ -71,7 +71,7 @@ async function load(){const button=$('#refresh');if(button.disabled)return;butto
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')load()});window.addEventListener('online',()=>load());setInterval(()=>{if(document.visibilityState==='visible')load()},60000);
 $('#home-all').onclick=()=>openHome('');
 document.querySelectorAll('a[href="#inicio"]').forEach(a=>a.addEventListener('click',goToStart));
-$('#search').oninput=()=>{limit=24;render()};$('#category').onchange=()=>{if($('#category').value)chooseCategory($('#category').value)};$('#more').onclick=()=>{limit+=24;render()};$('#refresh').onclick=load;document.querySelector('.bottom a[href="#catalogo"]').addEventListener('click',()=>openHome(''));$('#product .close').onclick=()=>closeProduct();$('#product').addEventListener('cancel',()=>{location.hash='catalogo'});$('#install-dialog .close').onclick=()=>$('#install-dialog').close();$('#install').onclick=()=>$('#install-dialog').showModal();$('#dock-install').onclick=()=>$('#install-dialog').showModal();addEventListener('hashchange',route);addEventListener('online',render);addEventListener('offline',render);route();load();const APP_VERSION='0.1.23';
+$('#search').oninput=()=>{limit=24;render()};$('#category').onchange=()=>{if($('#category').value)chooseCategory($('#category').value)};$('#more').onclick=()=>{limit+=24;render()};$('#refresh').onclick=load;document.querySelector('.bottom a[href="#catalogo"]').addEventListener('click',()=>openHome(''));$('#product .close').onclick=()=>closeProduct();$('#product').addEventListener('cancel',()=>{location.hash='catalogo'});$('#install-dialog .close').onclick=()=>$('#install-dialog').close();$('#install').onclick=()=>$('#install-dialog').showModal();$('#dock-install').onclick=()=>$('#install-dialog').showModal();addEventListener('hashchange',route);addEventListener('online',render);addEventListener('offline',render);route();load();const APP_VERSION='0.1.24';
 let updateInProgress=false;
 const updateMessage=message=>{for(const id of ['#update-status','#update-dialog-status']){const el=$(id);if(el)el.textContent=message}};
 async function updateApplication(manual=false){
@@ -81,20 +81,19 @@ async function updateApplication(manual=false){
  updateInProgress=true;
  try{
   if(manual)updateMessage('Buscando una versión nueva…');
-  const registration=await navigator.serviceWorker.getRegistration('./');
-  if(registration)await registration.update();
+  const registration=await navigator.serviceWorker.getRegistration('./').catch(()=>null);
   const response=await fetch('./version.json?check='+Date.now(),{cache:'no-store'});
   if(!response.ok)throw Error('No se pudo consultar la versión');
   const info=await response.json();
   if(!info.version||!/^[0-9]+\.[0-9]+\.[0-9]+$/.test(info.version))throw Error('Versión no válida');
   if(info.version!==APP_VERSION){
    if(manual)updateMessage('Versión '+info.version+' disponible. Actualizando…');
-   if(registration){
-    await registration.update();
-    await new Promise(resolve=>setTimeout(resolve,800));
-   }
+   if(registration)await Promise.race([registration.update().catch(()=>{}),new Promise(resolve=>setTimeout(resolve,1500))]);
    // El service worker activo sirve siempre el documento desde la red si hay conexión.
-   location.replace('./?v='+encodeURIComponent(info.version)+'#'+(location.hash.slice(1)||'inicio'));
+   const key='elcuquet-update-'+info.version;
+   if(!manual&&sessionStorage.getItem(key))return;
+   sessionStorage.setItem(key,'1');
+   location.replace('./index.html?v='+encodeURIComponent(info.version)+'&reload='+Date.now()+'#'+(location.hash.slice(1)||'inicio'));
    return;
   }
   if(manual){await load();updateMessage('Aplicación actualizada. Versión '+APP_VERSION+'.');}
